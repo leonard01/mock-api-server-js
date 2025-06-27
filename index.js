@@ -1,162 +1,72 @@
-const fs = require('fs');
-const path = require('path');
 const express = require('express');
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// Enable JSON body parsing
+const { loadUsersFromFile, saveUsersToFile } = require('./lib/data');
+const { setUsers, getUsers, addUser, updateUser, deleteUser } = require('./lib/users');
+const { validateUserInput } = require('./lib/validateUser');
+
+// Middleware
 app.use(express.json());
 
-// Health check route
+// Load users from file into memory at startup
+const initialUsers = loadUsersFromFile();
+setUsers(initialUsers);
+
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.send('OK');
 });
 
-// Load mock users
-const USERS_FILE_PATH = path.join(__dirname, 'mock-data', 'users.json');
-
-// Seed data
-const DEFAULT_USERS = [
-  { id: 1, name: 'Alice', email: 'alice@example.com' },
-  { id: 2, name: 'Bob', email: 'bob@example.com' }
-];
-
-// Ensure file exists and load users
-let users = [];
-
-if (!fs.existsSync(USERS_FILE_PATH)) {
-  console.log('⚠️ users.json not found — creating with default data...');
-  fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(DEFAULT_USERS, null, 2), 'utf8');
-  users = [...DEFAULT_USERS];
-} else {
-  try {
-    users = require('./mock-data/users.json');
-    console.log('✅ Loaded users from file');
-  } catch (err) {
-    console.error('❌ Failed to load users.json:', err.message);
-    users = [...DEFAULT_USERS];
-  }
-}
-
-
-function saveUsersToFile(res = null) {
-  try {
-    fs.writeFileSync(USERS_FILE_PATH, JSON.stringify(users, null, 2), 'utf8');
-    return true;
-  } catch (err) {
-    console.error('❌ Failed to write users.json:', err.message);
-    if (res) {
-      res.status(500).json({ error: 'Failed to save user data' });
-    }
-    return false;
-  }
-}
-
-
-
-try {
-  users = require('./mock-data/users.json');
-  console.log('Mock users loaded:', users);
-} catch (err) {
-  console.error('Failed to load users:', err.message);
-}
-
-// GET /users with optional query filters
+// GET all users
 app.get('/users', (req, res) => {
-  const { id, name, email } = req.query;
-
-  let results = users;
-
-  if (id) {
-    results = results.filter(u => u.id === Number(id));
-  }
-
-  if (name) {
-    const nameLower = name.toLowerCase();
-    results = results.filter(u => u.name.toLowerCase().includes(nameLower));
-  }
-
-  if (email) {
-    const emailLower = email.toLowerCase();
-    results = results.filter(u => u.email.toLowerCase().includes(emailLower));
-  }
-
-  if (results.length === 0) {
-    return res.status(404).json({ error: 'No users found' });
-  }
-
-  res.json(results);
+  res.json(getUsers());
 });
 
-// POST /users to create a new user
+// POST a new user
 app.post('/users', (req, res) => {
-  const { name, email } = req.body;
+  const users = getUsers();
+  const validation = validateUserInput(req.body, users);
 
-  if (typeof name !== 'string' || name.trim().length < 2) {
-    return res.status(400).json({ error: 'Name must be at least 2 characters' });
+  if (!validation.valid) {
+    const status = validation.message.includes('exists') ? 409 : 400;
+    return res.status(status).json({ error: validation.message });
   }
 
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (typeof email !== 'string' || !emailPattern.test(email)) {
-    return res.status(400).json({ error: 'Email is invalid' });
-  }
-
-  if (users.some(u => u.email === email)) {
-    return res.status(409).json({ error: 'Email already exists' });
-  }
-
-  const newUser = {
-    id: users.length ? Math.max(...users.map(u => u.id)) + 1 : 1,
-    name: name.trim(),
-    email: email.toLowerCase()
-  };
-
-  users.push(newUser);
-  if (!saveUsersToFile(res)) return;
-
+  const newUser = addUser(req.body);
+  saveUsersToFile(getUsers());
   res.status(201).json(newUser);
 });
 
-
-
-// PUT /users/:id to update a user
+// PUT (update) a user by ID
 app.put('/users/:id', (req, res) => {
-  const { id } = req.params;
-  const { name, email } = req.body;
+  const updated = updateUser(parseInt(req.params.id), req.body);
 
-  const user = users.find(u => u.id === Number(id));
-  if (!user) return res.status(404).json({ error: 'User not found' });
-
-  if (name) user.name = name;
-  if (email) user.email = email;
-
-  if (!saveUsersToFile(res)) return;
-
-  res.json(user);
-});
-
-
-// DELETE /users/:id to remove a user
-app.delete('/users/:id', (req, res) => {
-  const { id } = req.params;
-
-  const index = users.findIndex(u => u.id === Number(id));
-  if (index === -1) {
+  if (!updated) {
     return res.status(404).json({ error: 'User not found' });
   }
 
-  const deleted = users.splice(index, 1);
-  if (!saveUsersToFile(res)) return;
-
-  res.json({ deleted: deleted[0] }); // ✅ return deleted user object
+  saveUsersToFile(getUsers());
+  res.json(updated);
 });
 
+// DELETE a user by ID
+app.delete('/users/:id', (req, res) => {
+  const deleted = deleteUser(parseInt(req.params.id));
 
-// Start the server
+  if (!deleted) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  saveUsersToFile(getUsers());
+  res.json({ deleted });
+});
+
+// Start server if run directly
 if (require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
 } else {
-  module.exports = app;
+  module.exports = app; // for Supertest
 }
