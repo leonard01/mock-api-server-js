@@ -141,17 +141,22 @@ app.delete('/users/:id', (req, res) => {
   const { id } = req.params;
 
   const index = users.findIndex(u => u.id === Number(id));
-  if (index === -1) return res.status(404).json({ error: 'User not found' });
+  if (index === -1) {
+    return res.status(404).json({ error: 'User not found' });
+  }
 
   const deleted = users.splice(index, 1);
-
   if (!saveUsersToFile(res)) return;
 
-  res.json({ deleted: deleted[0] });
+  res.json({ deleted: deleted[0] }); // ✅ return deleted user object
 });
 
 
 // Start the server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running at http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+} else {
+  module.exports = app;
+}

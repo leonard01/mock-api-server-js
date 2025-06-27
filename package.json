@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "reset": "rm -f mock-data/users.json"
   },
   "repository": {
@@ -20,5 +20,9 @@
   "homepage": "https://github.com/leonard01/mock-api-server-js#readme",
   "dependencies": {
     "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "jest": "^30.0.3",
+    "supertest": "^7.1.1"
   }
 }

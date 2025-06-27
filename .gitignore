@@ -1,0 +1,33 @@
+# Node modules
+node_modules/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Coverage output
+coverage/
+
+# Jest cache
+.jest/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# VSCode or IDE config
+.vscode/
+.idea/
+
+# Mock data that gets reset
+mock-data/users.json
+
+# Test output
+*.lcov
